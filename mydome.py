@@ -259,7 +259,9 @@ class MyDome(IndiLoop):
             time.sleep(2)
         self.sendDriverMessage("MyDome", "DOME_PARK")
     
-    def handleNewValue(self, msg, prop):
+    def handleNewValue(self, msg, prop, from_client_socket=False):
+        if from_client_socket:
+            return
 
         device = prop.getAttr("device")
         name = prop.getAttr("name")

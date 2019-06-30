@@ -122,7 +122,7 @@ class IndiLoop(object):
                             device = msg.get("device")
                             if device in self.my_devices:
                                 prop = self.properties[device][msg.get("name")]
-                                self.handleNewValue(msg, prop)
+                                self.handleNewValue(msg, prop, from_client_socket=(in_s is self.client_socket))
                         except:
                             log.exception('new')
                     elif spec['mode'] == 'control':
@@ -158,7 +158,10 @@ class IndiLoop(object):
                 self.stdout.buffer.write(msg)
                 self.stdout.flush()
 
-    def handleNewValue(self, msg, prop):
+    def handleNewValue(self, msg, prop, from_client_socket=False):
+        if from_client_socket:
+            return
+
         prop.newFromEtree(msg)
 
         prop.setAttr('state', 'Ok')
