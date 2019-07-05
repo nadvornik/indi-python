@@ -137,6 +137,16 @@ class IndiLoop(object):
                                     continue
                                 for prop in self.properties[device]:
                                     self.sendDriver(self.properties[device][prop].defineMessage())
+                        elif msg.tag == 'delProperty':
+                            try:
+                                device = msg.get("device")
+                                propname = msg.get("name")
+                                if propname:
+                                    del self.properties[device][propname]
+                                else:
+                                    self.properties[device] = {}
+                            except:
+                                log.exception('delProperty')
 
         for in_s in self.extra_input:
             if in_s in readable:
