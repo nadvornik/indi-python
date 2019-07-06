@@ -13,6 +13,7 @@ import datetime
 import select
 from lxml import etree
 import threading
+import collections
 
 import indi_python.indi_base as indi
 
@@ -26,7 +27,7 @@ class IndiLoop(object):
     def __init__(self, client_addr = None, driver = False, client_port = 7624):
 
         self.my_devices = []
-        self.properties = { }
+        self.properties = collections.OrderedDict()
         
         self.stdin = None
         self.stdout = None
@@ -68,7 +69,7 @@ class IndiLoop(object):
         tree = etree.fromstring(xml)
         for p in tree:
             prop = indi.INDIVector(p)
-            self.properties.setdefault(prop.getAttr('device'), {})[prop.getAttr('name')] = prop
+            self.properties.setdefault(prop.getAttr('device'), collections.OrderedDict())[prop.getAttr('name')] = prop
         
         self.my_devices = list(self.properties.keys())
 
@@ -104,7 +105,9 @@ class IndiLoop(object):
                     if spec['mode'] == 'define':
                         try:
                             prop = indi.INDIVector(msg)
-                            self.properties.setdefault(prop.getAttr('device'), {})[prop.getAttr("name")] = prop
+                            with self.snoop_condition:
+                                self.properties.setdefault(prop.getAttr('device'), collections.OrderedDict())[prop.getAttr("name")] = prop
+                                self.snoop_condition.notify_all()
                         except:
                             log.exception('define')
                             
@@ -144,7 +147,7 @@ class IndiLoop(object):
                                 if propname:
                                     del self.properties[device][propname]
                                 else:
-                                    self.properties[device] = {}
+                                    self.properties[device] = collections.OrderedDict()
                             except:
                                 log.exception('delProperty')
 
@@ -219,6 +222,12 @@ class IndiLoop(object):
     def sendDriverMessage(self, device, prop_name, message = None):
         prop = self.properties[device][prop_name]
         self.sendDriver(prop.setMessage(message))
+
+    def _checkChanges(self, prop, changes={}):
+        for c in changes:
+            if str(prop[c].getValue()) != str(changes[c]):
+                return True
+        return False
           
     def sendClientMessage(self, device, name, changes={}):
         try:
@@ -238,6 +247,11 @@ class IndiLoop(object):
                 baseprop = self.properties[device][name]
                 cnt = baseprop.update_cnt
                 self.sendClientMessage(device, name, changes)
+                changes = self._checkChanges(baseprop, changes)
+                if not changes:
+                    # no changes, do not wait for result
+                    log.error("sendClientMessageWait no changes %s %s", device, name)
+                    return
                 t0 = time.time()
             except:
                 log.exception("sendClientMessageWait")
@@ -254,7 +268,25 @@ class IndiLoop(object):
                     
         log.error("sendClientMessageWait end %s %s", device, name)
 
+    def waitForProp(self, device, name, timeout=None, call_loop=False):
+        if timeout is None:
+            timeout = self.reply_timeout
 
+        log.error("waitForProp start %s %s", device, name)
+        with self.snoop_condition:
+            while True:
+                try:
+                    return self.properties[device][name]
+                except:
+                    pass
+            
+                if call_loop:
+                    self.loop1(timeout)
+                else:
+                    self.snoop_condition.wait(timeout)
+                
+                if timeout and t0 + timeout < time.time():
+                    raise RuntimeError('Prop is still missing')
 
     def __getitem__(self, key):
         return self.properties[key]
