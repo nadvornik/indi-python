@@ -26,7 +26,7 @@ indi_messages = {
     "defLightVector"  : { 'mode': 'define', 'ptype': indi_bool,   'vector': True,  'itype': 'Light',  'setmsg': "setLightVector", 'newmsg': "newLightVector"},
     "defLight"        : { 'mode': 'define', 'ptype': indi_bool,   'vector': False, 'itype': 'Light',  'onemsg': "oneLight"},
     "defBLOBVector"   : { 'mode': 'define', 'ptype': base64.b64decode,         'vector': True,  'itype': 'BLOB',   'setmsg': "setBLOBVector", 'newmsg': "newBLOBVector"},
-    "defBLOB"         : { 'mode': 'define', 'ptype': base64.b64decode,         'vector': False, 'itype': 'BLOB',   'onemsg': "oneBlob"},
+    "defBLOB"         : { 'mode': 'define', 'ptype': base64.b64decode,         'vector': False, 'itype': 'BLOB',   'onemsg': "oneBLOB"},
 
     "setTextVector"   : { 'mode': 'set',    'ptype': str,         'vector': True,  'itype': 'Text'},
     "setNumberVector" : { 'mode': 'set',    'ptype': float,       'vector': True,  'itype': 'Number'},
@@ -90,12 +90,20 @@ class INDIElement(INDIBase, np.lib.mixins.NDArrayOperatorsMixin):
             v = 'On'
         elif v is False:
             v = 'Off'
+	
+        if self.itype == 'BLOB':
+            if isinstance(v, str):
+                v = v.encode()
+            self.setAttr('size', str(len(v)))
+            self.value = base64.b64encode(v).decode('ascii')
+            return
+
         self.value = v
 
     def fromEtree(self, t):
-        self.attrsFromEtree(t)
         text = t.text or ''
-        self.setValue(text.strip())
+        self.value = text.strip()
+        self.attrsFromEtree(t)
 
     def __str__(self):
         return str(self.value)
@@ -119,7 +127,10 @@ class INDIElement(INDIBase, np.lib.mixins.NDArrayOperatorsMixin):
 
     def setMessageTree(self, value = None):
         attrs = {}
-        for a in ['name']:
+        alist = ['name']
+        if self.itype == 'BLOB':
+            alist += ['size', 'format']
+        for a in alist:
             try:
                 attrs[a] = self.getAttr(a)
             except:
@@ -138,7 +149,8 @@ class INDIElement(INDIBase, np.lib.mixins.NDArrayOperatorsMixin):
 
     def defineMessageTree(self):
         tree = etree.Element(self.definemsg, attrib=self.attr)
-        tree.text = str(self.value)
+        if self.itype != 'BLOB':
+            tree.text = str(self.value)
         return tree
 
     def defineMessage(self):
