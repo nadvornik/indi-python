@@ -65,13 +65,18 @@ class IndiLoop(object):
     def addExtraInput(self, s):
         self.extra_input.append(s)
 
-    def defineProperties(self, xml):
+    def defineProperties(self, xml, prepend=False):
         tree = etree.fromstring(xml)
+        prepended = {}
         for p in tree:
             prop = indi.INDIVector(p)
             self.properties.setdefault(prop.getAttr('device'), collections.OrderedDict())[prop.getAttr('name')] = prop
+            if prepend and not prepended.get(prop.getAttr('device')):
+                prepended[prop.getAttr('device')] = True
+                self.properties[prop.getAttr('device')].move_to_end(prop.getAttr('name'), last=False)
         
-        self.my_devices = list(self.properties.keys())
+            if prop.getAttr('device') not in self.my_devices:
+                self.my_devices.append(prop.getAttr('device'))
 
     def loop1(self, timeout = None):
     
