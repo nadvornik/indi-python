@@ -446,8 +446,13 @@ def enableBLOB(device, name=None, mode="Also"):
         return "<enableBLOB device='{}'>{}</enableBLOB>".format(device, mode).encode()
 
 def message(device, text):
-    tree = etree.Element('mesage', attrib={
-        'device': device, 
-        'timestamp': datetime.datetime.utcnow().replace(microsecond=0).isoformat(),
-        'message': text})
+    if device is not None:
+        tree = etree.Element('message', attrib={
+            'device': device,
+            'timestamp': datetime.datetime.utcnow().replace(microsecond=0).isoformat(),
+            'message': text})
+    else:
+        tree = etree.Element('message', attrib={
+            'timestamp': datetime.datetime.utcnow().replace(microsecond=0).isoformat(),
+            'message': text})
     return etree.tostring(tree)
