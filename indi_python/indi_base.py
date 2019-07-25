@@ -8,6 +8,7 @@ import numpy as np
 import numbers
 
 import base64
+import zlib
 
 def indi_bool(x):
     if x == 'On':
@@ -85,7 +86,7 @@ class INDIElement(INDIBase, np.lib.mixins.NDArrayOperatorsMixin):
     def getValue(self):
         return self.value
 
-    def setValue(self, v):
+    def setValue(self, v, compress=False):
         if v is True:
             v = 'On'
         elif v is False:
@@ -95,6 +96,8 @@ class INDIElement(INDIBase, np.lib.mixins.NDArrayOperatorsMixin):
             if isinstance(v, str):
                 v = v.encode()
             self.setAttr('size', str(len(v)))
+            if compress:
+                v = zlib.compress(v)
             self.value = base64.b64encode(v).decode('ascii')
             return
 
