@@ -66,6 +66,7 @@ class MyDome(IndiLoop):
 
         self.addExtraInput(self.http_server.fileno())
         self.timeout = 10
+        self.log_messages = True
 
     def loop(self):
         while True:
@@ -80,11 +81,22 @@ class MyDome(IndiLoop):
                 time.sleep(0.1)
                 self.sendClientMessage(self.power_switch, "ROOF_OPEN", {"ON": "On"})
                 self.phase = 'open_start_move1'
-            elif self.phase == 'close_connect' and self.checkValue(self.power_switch, "CONNECTION", "CONNECT") == "On":
+            elif (self.phase == 'close_connect' and 
+                  self.checkValue(self.power_switch, "CONNECTION", "CONNECT") == "On" and
+                  self.checkValue(self.sensors, "CONNECTION", "CONNECT") == "On" and
+                  self.checkValue(self.telescope, "CONNECTION", "CONNECT") == "On"): 
                 self.message("Connected, wait for telescope")
                 if self.checkValue(self.power_switch, "ROOF_OPEN", "ON") == "On":
                     self.sendClientMessage(self.power_switch, "ROOF_OPEN", {"ON": "Off"})
                     time.sleep(1)
+                
+                try:
+                    self.checkCoords()
+                except:
+                    log.exception("checkCoords")
+                
+                self.properties["MyDome"]["DOME_PARK"].setAttr('state', 'Busy')
+                self.sendDriverMessage("MyDome", "DOME_PARK")
                 self.phase = 'close_wait_park'
             elif self.phase == 'close_wait_park':
                 try:
@@ -165,6 +177,13 @@ class MyDome(IndiLoop):
                 self.startClose()
                 self.message("closing: alert")
 
+            if self.checkValue(self.power_switch, "CONNECTION", "CONNECT") != "On":
+                self.sendClientMessage(self.power_switch, "CONNECTION", {"CONNECT": "On"})
+            if self.checkValue(self.sensors, "CONNECTION", "CONNECT") != "On":
+                 self.sendClientMessage(self.sensors, "CONNECTION", {"CONNECT": "On"})
+            if self.phase == 'opened' and self.checkValue(self.telescope, "CONNECTION", "CONNECT") != "On":
+                 self.sendClientMessage(self.telescope, "CONNECTION", {"CONNECT": "On"})
+
 
 
 
@@ -197,7 +216,6 @@ class MyDome(IndiLoop):
                         self.checkCoords()
                     except:
                         log.exception("checkCoords")
-                        pass
 
         if prop.getAttr("device") == self.sensors and prop.getAttr("name") == "TELESCOPE_ABORT_MOTION" and prop.checkValue("ABORT") == "On":
             try:
@@ -209,6 +227,7 @@ class MyDome(IndiLoop):
         if prop.getAttr("device") == self.power_switch and prop.getAttr("name") =="SENSORS" and float(self.checkValue(self.power_switch, "SENSORS", "V_SUPPLY")) < 13.0 and self.phase == 'opened':
             self.startClose()
             self.message("closing: battery " + self.checkValue(self.power_switch, "SENSORS", "V_SUPPLY"))
+
 
     def checkCoords(self):
         log.info('checkCoords start')
@@ -237,6 +256,7 @@ class MyDome(IndiLoop):
             self.sendClientMessage(self.telescope, 'TARGETPIERSIDE', {'PIER_WEST': s_pier_west, 'PIER_EAST': s_pier_east})
             self.sendClientMessage(self.telescope, 'EQUATORIAL_EOD_COORD', {'RA': str(s_ra), 'DEC': str(s_dec)})
             self.sendClientMessage(self.telescope, 'ON_COORD_SET', {'TRACK': 'On'})
+            time.sleep(2)
         else:
             self.sendClientMessage(self.telescope, 'TARGETPIERSIDE', {'PIER_WEST': s_pier_west, 'PIER_EAST': s_pier_east})
 
@@ -250,14 +270,17 @@ class MyDome(IndiLoop):
 
         self.message("http notify: " + str(response))
 
-        self.properties["MyDome"]["DOME_PARK"].setAttr('state', 'Busy')
+        #self.properties["MyDome"]["DOME_PARK"].setAttr('state', 'Busy')
         self.phase = 'close_connect'
+
+        if self.checkValue(self.telescope, "CONNECTION", "CONNECT") != "On":
+            self.sendClientMessage(self.telescope, "CONNECTION", {"CONNECT": "On"})
         self.sendClientMessage(self.power_switch, "CONNECTION", {"CONNECT": "On"})
         self.sendClientMessage(self.sensors, "CONNECTION", {"CONNECT": "On"})
-        if self.checkValue(self.telescope, "CONNECTION", "CONNECT") != 'On':
-            self.sendClientMessage(self.telescope, "CONNECTION", {"CONNECT": "On"})
-            time.sleep(2)
-        self.sendDriverMessage("MyDome", "DOME_PARK")
+
+        self.sendClientMessage(self.telescope, "TELESCOPE_ABORT_MOTION", {"ABORT": "On"})
+        time.sleep(1)
+        #self.sendDriverMessage("MyDome", "DOME_PARK")
     
     def handleNewValue(self, msg, prop, from_client_socket=False):
         if from_client_socket:
