@@ -58,6 +58,7 @@ class IndiLoop(object):
         self.timeout = None
         self.reply_timeout = None
         self.snoop_condition = threading.Condition()
+        self.log_messages = False
  
     def close(self):
         pass
@@ -104,6 +105,11 @@ class IndiLoop(object):
                     pass
             
                 for msg in tree:
+                    if self.log_messages:
+                        logmsg = msg.get("message")
+                        if logmsg:
+                            log.info("%s %s", msg.get("timestamp"), logmsg)
+
                     spec = indi.getSpec(msg)
                 
                 
