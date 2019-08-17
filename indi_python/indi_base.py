@@ -151,7 +151,17 @@ class INDIElement(INDIBase, np.lib.mixins.NDArrayOperatorsMixin):
         return etree.tostring(tree)
 
     def defineMessageTree(self):
-        tree = etree.Element(self.definemsg, attrib=self.attr)
+        attrs = {}
+        alist = ['name', 'label']
+        if self.itype == 'Number':
+            alist += ['format', 'min', 'max', 'step']
+        for a in alist:
+            try:
+                attrs[a] = self.getAttr(a)
+            except:
+                pass
+            
+        tree = etree.Element(self.definemsg, attrib=attrs)
         if self.itype != 'BLOB':
             tree.text = str(self.value)
         return tree
@@ -345,7 +355,17 @@ class INDIVector(INDIBase, np.lib.mixins.NDArrayOperatorsMixin):
 
     def defineMessageTree(self, message = None):
         self.attr['timestamp'] = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
-        tree = etree.Element(self.definemsg, attrib=self.attr)
+        attrs = {}
+        for a in ['device', 'name', 'label', 'group', 'state', 'perm', 'rule', 'timeout', 'timestamp']:
+            try:
+                attrs[a] = self.getAttr(a)
+            except:
+                pass
+
+        if message is not None:
+            attrs['message'] = message
+            
+        tree = etree.Element(self.definemsg, attrib=attrs)
         
         for e in self.elements:
             tree.append(e.defineMessageTree())
